@@ -1,0 +1,26 @@
+FROM python:3.10-slim
+
+# Install network tools and utilities
+RUN apt-get update && apt-get install -y \
+    iputils-ping \
+    dnsutils \
+    net-tools \
+    curl \
+    wget \
+    traceroute \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy app file into container
+COPY app.py /app/app.py
+
+# Install Flask
+RUN pip install flask
+
+# Expose port 80
+EXPOSE 80
+
+# Run the Flask app
+CMD ["python", "app.py"]
