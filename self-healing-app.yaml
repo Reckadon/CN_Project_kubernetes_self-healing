@@ -2,8 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: self-healing-app
+  labels:
+    app: self-healing
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: self-healing
@@ -13,13 +15,13 @@ spec:
         app: self-healing
     spec:
       containers:
-      - name: app
-        image: nginx
-        ports:
-        - containerPort: 80
+      - name: network-tools
+        image: nicolaka/netshoot
+        command: ["sleep", "infinity"]
         livenessProbe:
-          httpGet:
-            path: /
-            port: 80
+          exec:
+            command:
+            - cat
+            - /etc/hostname
           initialDelaySeconds: 5
           periodSeconds: 5
