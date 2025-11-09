@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: tester
+        image: curlimages/curl:7.88.1
+        command: ["/bin/sh","-c"]
+        args:
+        - |
+          while true; do
+            ts=$(date -Iseconds 2>/dev/null || date)
+            if curl -s --max-time 3 http://baseline-svc/ >/dev/null 2>&1; then
+              echo "$ts OK"
+            else
+              echo "$ts FAIL"
+            fi
+            sleep 2
+          done
