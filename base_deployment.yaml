@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: randomly-failing-app
-        image: test-app:v2
+        image: test-app:v3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
@@ -25,9 +25,9 @@ spec:
             path: /
             port: 80
           initialDelaySeconds: 10
-          periodSeconds: 10
+          periodSeconds: 5
           timeoutSeconds: 2
-          failureThreshold: 3
+          failureThreshold: 2
         readinessProbe:
           httpGet:
             path: /healthz

@@ -22,7 +22,7 @@ spec:
         - |
           while true; do
             ts=$(date -Iseconds 2>/dev/null || date)
-            if curl -s --max-time 3 http://baseline-svc/ >/dev/null 2>&1; then
+            if curl -s --max-time 3 -f http://baseline-svc/ >/dev/null 2>&1; then
               echo "$ts OK"
             else
               echo "$ts FAIL"
