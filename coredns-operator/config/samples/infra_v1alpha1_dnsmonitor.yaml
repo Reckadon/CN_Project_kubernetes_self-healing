@@ -1,9 +1,11 @@
 apiVersion: infra.sharduljunagade.github.io/v1alpha1
 kind: DNSMonitor
 metadata:
-  labels:
-    app.kubernetes.io/name: coredns-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: dnsmonitor-sample
+  name: dns-monitor
+  namespace: default
 spec:
-  # TODO(user): Add fields here
+  namespace: kube-system
+  probeIntervalSeconds: 30
+  testDomain: "kubernetes.default.svc.cluster.local"
+  failureThreshold: 2
+  desiredReplicas: 3

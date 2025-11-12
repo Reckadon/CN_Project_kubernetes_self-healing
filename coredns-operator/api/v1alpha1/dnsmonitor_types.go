@@ -25,37 +25,53 @@ import (
 
 // DNSMonitorSpec defines the desired state of DNSMonitor
 type DNSMonitorSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// // INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// // Important: Run "make" to regenerate code after modifying this file
+	// // The following markers will use OpenAPI v3 schema to validate the value
+	// // More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// foo is an example field of DNSMonitor. Edit dnsmonitor_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	// // foo is an example field of DNSMonitor. Edit dnsmonitor_types.go to remove/update
+	// // +optional
+	// Foo *string `json:"foo,omitempty"`
+
+	// Namespace where CoreDNS runs (default: kube-system)
+	Namespace string `json:"namespace,omitempty"`
+	// Probe interval in seconds
+	ProbeIntervalSeconds int `json:"probeIntervalSeconds,omitempty"`
+	// DNS domain to resolve for health check (default: kubernetes.default.svc.cluster.local)
+	TestDomain string `json:"testDomain,omitempty"`
+	// FailureThreshold - number of consecutive probe failures before restart
+	FailureThreshold int `json:"failureThreshold,omitempty"`
+	// DesiredReplicas - minimum number of CoreDNS replicas to enforce (optional)
+	DesiredReplicas *int32 `json:"desiredReplicas,omitempty"`
 }
 
 // DNSMonitorStatus defines the observed state of DNSMonitor.
 type DNSMonitorStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// // INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// // Important: Run "make" to regenerate code after modifying this file
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// // For Kubernetes API conventions, see:
+	// // https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
 
-	// conditions represent the current state of the DNSMonitor resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
-	// +listType=map
-	// +listMapKey=type
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// // conditions represent the current state of the DNSMonitor resource.
+	// // Each condition has a unique type and reflects the status of a specific aspect of the resource.
+	// //
+	// // Standard condition types include:
+	// // - "Available": the resource is fully functional
+	// // - "Progressing": the resource is being created or updated
+	// // - "Degraded": the resource failed to reach or maintain its desired state
+	// //
+	// // The status of each condition is one of True, False, or Unknown.
+	// // +listType=map
+	// // +listMapKey=type
+	// // +optional
+	// Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	LastChecked metav1.Time `json:"lastChecked,omitempty"`
+	LastAction  string      `json:"lastAction,omitempty"`
+	FailCount   int         `json:"failCount,omitempty"`
+	Healthy     bool        `json:"healthy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -67,15 +83,15 @@ type DNSMonitor struct {
 
 	// metadata is a standard object metadata
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec defines the desired state of DNSMonitor
 	// +required
-	Spec DNSMonitorSpec `json:"spec"`
+	Spec DNSMonitorSpec `json:"spec,omitempty"`
 
 	// status defines the observed state of DNSMonitor
 	// +optional
-	Status DNSMonitorStatus `json:"status,omitempty,omitzero"`
+	Status DNSMonitorStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
