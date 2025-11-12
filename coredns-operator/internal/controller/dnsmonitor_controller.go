@@ -85,7 +85,7 @@ func (r *DNSMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		failThreshold = 3
 	}
 
-	// Step 1a: Enforce CoreDNS desired replicas if specified
+	// 1. Enforce CoreDNS desired replicas if specified
 	if dm.Spec.DesiredReplicas != nil {
 		var dep appsv1.Deployment
 		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: "coredns"}, &dep); err == nil {
@@ -107,7 +107,7 @@ func (r *DNSMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	// Step 1b: Check CoreDNS pods readiness
+	// 2. Check CoreDNS pods readiness
 	var podList corev1.PodList
 	if err := r.List(ctx, &podList, client.InNamespace(ns), client.MatchingLabels{"k8s-app": "kube-dns"}); err != nil {
 		logger.Error(err, "failed to list CoreDNS pods")
@@ -158,7 +158,7 @@ func (r *DNSMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
 		}
 
-		// If job completed (succeeded or failed) -> evaluate result
+		// If job completed (succeeded or failed), evaluate result
 		if existingJob.Status.Succeeded > 0 {
 			// probe success
 			dm.Status.FailCount = 0
@@ -177,7 +177,7 @@ func (r *DNSMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		dm.Status.LastChecked = metav1.Now()
 		_ = r.Status().Update(ctx, &dm)
 
-		// If failures exceed threshold -> remediation below (shared with other logic)
+		// If failures exceed threshold, remediation below (shared with other logic)
 		if dm.Status.FailCount >= failThreshold {
 			logger.Info("DNS failures >= threshold -> performing remediation")
 			// remediation block continues below (delete pods or rolling restart)
