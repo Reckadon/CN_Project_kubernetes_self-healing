@@ -8,4 +8,4 @@ spec:
   probeIntervalSeconds: 30
   testDomain: "kubernetes.default.svc.cluster.local"
   failureThreshold: 3
-  desiredReplicas: 1
+  desiredReplicas: 2
