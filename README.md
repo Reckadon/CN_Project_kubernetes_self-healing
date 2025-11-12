@@ -16,3 +16,5 @@ Optionally, start the kubernetes dashboard with:
 ```bash
 minikube dashboard
 ```
+### To Run the Operator
+Find the instruction in [OPERATOR_DEMO.md](https://github.com/Reckadon/CN_Project_kubernetes_self-healing/blob/main/OPERATOR_DEMO.md)
