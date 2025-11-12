@@ -29,8 +29,8 @@ These are independent from the DNS operator and useful to verify your cluster is
 ```bash
 # Build and load image
 cd test_app
-docker build -t test-app:latest .
-minikube image load test-app:latest
+docker build -t test-app:v3 .
+minikube image load test-app:v3
 cd ..
 
 # Deploy app + service + monitor
@@ -41,7 +41,18 @@ kubectl apply -f frontend.yaml
 kubectl logs -f deployment/frontend
 ```
 
-## Build and Deploy the DNS Operator
+## Build the DNS Operator (only do once)
+
+```bash
+cd coredns-operator
+
+kubebuilder init --domain sharduljunagade.github.io --repo github.com/sharduljunagade/coredns-operator
+
+kubebuilder create api --group infra --version v1alpha1 --kind DNSMonitor
+
+```
+
+## Deploy the DNS Operator
 
 Inside `coredns-operator/`:
 ```bash
@@ -82,10 +93,22 @@ kubectl apply -f config/samples/infra_v1alpha1_dnsmonitor.yaml -n default
 kubectl get dnsmonitors -A
 ```
 
-Check controller logs:
+Check that the operator is running and monitoring DNS:
 ```bash
 kubectl logs -n coredns-operator-system deploy/coredns-operator-controller-manager -f
 ```
+
+Inspect CR status:
+```bash
+kubectl describe dnsmonitor dns-monitor
+```
+
+List CoreDNS pods:
+```bash
+kubectl get pods -n kube-system -l k8s-app=kube-dns -w
+```
+
+
 
 ## Simulate DNS Failure
 
@@ -97,8 +120,8 @@ kubectl get deploy coredns -n kube-system -w
 
 2) Verify DNS inside any pod fails:
 ```bash
-# Run a temporary pod to test DNS
-kubectl run -it --rm dnsutils --image=busybox:1.36 --restart=Never -- nslookup example.com || true
+kubectl run dnsutils --image=busybox:1.36 -- sleep 3600
+kubectl exec -it dnsutils -- nslookup example.com
 ```
 
 ## How the Operator Heals
@@ -114,12 +137,6 @@ You should quickly see the operator:
 - Scale `coredns` back up to `desiredReplicas` when you scale it down to 0
 - Delete unready CoreDNS pods when DNS probes fail repeatedly
 
-Monitor operator actions:
-```bash
-kubectl logs -n coredns-operator-system deploy/coredns-operator-controller-manager -f
-kubectl describe dnsmonitor dns-monitor
-kubectl get pods -n kube-system -l k8s-app=kube-dns -w
-```
 
 Re-test DNS:
 ```bash
@@ -127,13 +144,21 @@ kubectl run -it --rm dnsutils --image=busybox:1.36 --restart=Never -- nslookup e
 ```
 
 ## Cleanup
-```bash
+When you’re done testing, clean up everything:
+```
 kubectl delete -f config/samples/infra_v1alpha1_dnsmonitor.yaml
 make undeploy
 make uninstall
-# Optional demos
+
+# Optional: cleanup test apps
 kubectl delete -f ../frontend.yaml || true
 kubectl delete -f ../base_deployment.yaml || true
+```
+
+
+You can also remove leftover successful Jobs:
+```
+kubectl delete pod -n kube-system --field-selector=status.phase=Succeeded
 ```
 
 ## Notes

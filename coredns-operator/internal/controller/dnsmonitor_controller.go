@@ -132,63 +132,96 @@ func (r *DNSMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		dm.Status.LastChecked = metav1.Now()
 		dm.Status.Healthy = false
 		_ = r.Status().Update(ctx, &dm)
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	// Step 2: Run a small Job to test DNS resolution
-	jobName := fmt.Sprintf("dns-probe-%s", strings.ToLower(req.Name))
-	job := buildDNSProbeJob(jobName, ns, testDomain)
-	// Set owner ref so GC can clean it up if the CR is deleted
-	if err := ctrl.SetControllerReference(&dm, job, r.Scheme); err != nil {
-		logger.Error(err, "failed to set owner reference on job")
-	}
-
-	// Delete any old job if exists
-	_ = r.Delete(ctx, job)
-
-	if err := r.Create(ctx, job); err != nil {
-		logger.Error(err, "failed to create probe job")
-		return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, err
-	}
-
-	// Wait briefly for job completion (simple synchronous wait)
-	time.Sleep(8 * time.Second)
-
-	// Re-fetch job to inspect completion status
-	var jobStatus batchv1.Job
-	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: jobName}, &jobStatus); err != nil {
-		logger.Error(err, "could not get probe job status")
 		return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
 	}
 
-	success := jobStatus.Status.Succeeded > 0
-	if !success {
-		dm.Status.FailCount++
-		logger.Info("DNS probe failed", "failCount", dm.Status.FailCount)
-	} else {
-		dm.Status.FailCount = 0
-		dm.Status.Healthy = true
+	// ---------- PROBE JOB HANDLING (replacement) ----------
+	jobName := fmt.Sprintf("dns-probe-%s", strings.ToLower(req.Name))
+	var existingJob batchv1.Job
+	jobKey := client.ObjectKey{Namespace: ns, Name: jobName}
+	jobFound := true
+	if err := r.Get(ctx, jobKey, &existingJob); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			logger.Error(err, "error fetching probe job")
+			return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
+		}
+		jobFound = false
 	}
 
-	// Step 3: If failures exceed threshold → restart CoreDNS pods
+	if jobFound {
+		// If job is still active (no succeeded/failed pods), skip creating a new job.
+		if existingJob.Status.Active > 0 {
+			logger.Info("Probe job already running; skipping creation", "job", jobName)
+			// Update status.LastChecked and requeue after interval
+			dm.Status.LastChecked = metav1.Now()
+			_ = r.Status().Update(ctx, &dm)
+			return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
+		}
+
+		// If job completed (succeeded or failed) -> evaluate result
+		if existingJob.Status.Succeeded > 0 {
+			// probe success
+			dm.Status.FailCount = 0
+			dm.Status.Healthy = true
+			logger.Info("Probe job succeeded", "job", jobName)
+		} else {
+			// probe failed
+			dm.Status.FailCount++
+			dm.Status.Healthy = false
+			logger.Info("Probe job failed or did not succeed", "failCount", dm.Status.FailCount)
+		}
+
+		// Clean up completed job (best-effort)
+		_ = r.Delete(ctx, &existingJob)
+		// persist status
+		dm.Status.LastChecked = metav1.Now()
+		_ = r.Status().Update(ctx, &dm)
+
+		// If failures exceed threshold -> remediation below (shared with other logic)
+		if dm.Status.FailCount >= failThreshold {
+			logger.Info("DNS failures >= threshold -> performing remediation")
+			// remediation block continues below (delete pods or rolling restart)
+		} else {
+			// No remediation needed; requeue after interval
+			return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
+		}
+	}
+
+	// If no existing job, create one
+	if !jobFound {
+		job := buildDNSProbeJob(jobName, ns, testDomain)
+		if err := ctrl.SetControllerReference(&dm, job, r.Scheme); err != nil {
+			logger.Error(err, "failed to set owner reference on job")
+		}
+		if err := r.Create(ctx, job); err != nil {
+			logger.Error(err, "failed to create probe job")
+			// try again later
+			return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
+		}
+		logger.Info("Created probe job", "job", jobName)
+		// Return and wait — job completion will requeue controller if SetupWithManager Owns(Job) is set
+		return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
+	}
+
+	// ---------- REMEDIATION (delete pods) ----------
 	if dm.Status.FailCount >= failThreshold {
-		logger.Info("DNS failures exceed threshold — restarting CoreDNS")
+		logger.Info("Restarting CoreDNS pods due to consecutive DNS probe failures")
 		for _, p := range podList.Items {
-			_ = r.Delete(ctx, &p)
-			logger.Info("Restarted CoreDNS pod", "pod", p.Name)
+			if err := r.Delete(ctx, &p); err != nil {
+				logger.Error(err, "failed to delete CoreDNS pod", "pod", p.Name)
+			} else {
+				logger.Info("Deleted CoreDNS pod", "pod", p.Name)
+			}
 		}
 		dm.Status.LastAction = "Restarted CoreDNS pods due to DNS failures"
 		dm.Status.FailCount = 0
 		dm.Status.Healthy = false
+		dm.Status.LastChecked = metav1.Now()
+		_ = r.Status().Update(ctx, &dm)
+		return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
 	}
 
-	// Cleanup probe job
-	_ = r.Delete(ctx, job)
-
-	// Update status
-	dm.Status.LastChecked = metav1.Now()
-	_ = r.Status().Update(ctx, &dm)
-
+	// default requeue
 	return ctrl.Result{RequeueAfter: time.Duration(interval) * time.Second}, nil
 }
 
@@ -232,7 +265,8 @@ func buildDNSProbeJob(name, namespace, testDomain string) *batchv1.Job {
 // SetupWithManager sets up the controller with the Manager.
 func (r *DNSMonitorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1alpha1.DNSMonitor{}).
-		// Named("dnsmonitor").
-		Complete(r)
+	For(&infrav1alpha1.DNSMonitor{}).
+	Owns(&batchv1.Job{}).
+	// Named("dnsmonitor").
+	Complete(r)
 }
