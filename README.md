@@ -1,3 +1,11 @@
+# Enhancing Kubernetes Self-Healing for Networking Failures
+
+Team Members: 
+- Romit Mohane (23110279) - [Reckadon](https://github.com/Reckadon)
+- Shardul Junagade (23110297) - [ShardulJunagade](https://github.com/ShardulJunagade)
+- Shounak Ranade (23110304)
+- Rishabh Jogani (23110276)
+
 ## To Run
 go inside the `test-app` directory, and run:
 ```bash
